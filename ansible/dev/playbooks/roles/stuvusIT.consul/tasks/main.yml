@@ -1,7 +1,0 @@
----
-- import_tasks: build.yml
-- import_tasks: encrypt.yml
-- import_tasks: install.yml
-- import_tasks: cluster.yml
-  tags:
-    - consul_cluster

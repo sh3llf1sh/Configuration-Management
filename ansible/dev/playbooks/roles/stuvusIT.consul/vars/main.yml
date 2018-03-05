@@ -1,4 +1,0 @@
----
-gopath: "{{ global_cache_dir | mandatory }}/go"
-gopath_consul: "{{ gopath }}/src/github.com/hashicorp/consul"
-pwfile: /etc/consul.pw
