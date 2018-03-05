@@ -1,0 +1,5 @@
+---
+- name: Bootstrap Consul cluster
+  command:
+    cmd: consul join {% for host in consul_group | difference([inventory_hostname]) %}{{ hostvars[host]['ansible_default_ipv4']['address'] }} {% endfor %}
+  changed_when: false

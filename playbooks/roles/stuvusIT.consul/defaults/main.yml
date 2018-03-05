@@ -1,0 +1,3 @@
+---
+consul_version: 1.0.1
+consul_data: /var/lib/consul

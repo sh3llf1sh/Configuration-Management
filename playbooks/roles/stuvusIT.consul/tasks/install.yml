@@ -1,0 +1,64 @@
+---
+- name: Create Consul group
+  group:
+    name: consul
+    system: true
+
+- name: Create Consul user
+  user:
+    name: consul
+    group: consul
+    shell: /bin/false
+    createhome: false
+    system: true
+    comment: Consul Service user
+
+- name: Create Consul configuration
+  template:
+    src: consul.json.j2
+    dest: /etc/consul.json
+    owner: root
+    group: consul
+    mode: 0640
+  register: config
+
+- name: Create Consul database directory
+  file:
+    path: "{{ consul_data | mandatory }}"
+    state: directory
+    owner: consul
+    group: consul
+    mode: 0770
+
+- name: Install unit file
+  template:
+    src: consul.service.j2
+    dest: /etc/systemd/system/consul.service
+    mode: 0644
+  register: unitfile
+
+- name: Reload systemd
+  command: systemctl daemon-reload
+  when: unitfile.changed
+
+- name: Enable and start Consul
+  service:
+    name: consul.service
+    state: started
+    enabled: true
+  when: not unitfile.changed and not consulbin.changed
+
+- name: Enable and restart Consul
+  service:
+    name: consul.service
+    state: restarted
+    enabled: true
+  when: unitfile.changed or consulbin.changed
+
+- name: Reload Consul
+  service:
+    name: consul.service
+    state: reloaded
+  when: config.changed and not unitfile.changed and not consulbin.changed
+
+

@@ -1,0 +1,167 @@
+---
+- name: Gather localhost's facts
+  action: setup
+  delegate_facts: True
+  run_once: true
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Update controller cache (apt)
+  apt:
+    update_cache: yes
+  changed_when: false
+  run_once: true
+  when: "hostvars['localhost']['ansible_pkg_mgr'] == 'apt'"
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Update controller cache (pacman)
+  pacman:
+    update_cache: yes
+  changed_when: false
+  run_once: true
+  when: "hostvars['localhost']['ansible_pkg_mgr'] == 'pacman'"
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Update target cache (apt)
+  apt:
+    update_cache: yes
+  changed_when: false
+  when: "ansible_pkg_mgr == 'apt'"
+
+- name: Update target cache (pacman)
+  pacman:
+    update_cache: yes
+  changed_when: false
+  when: "ansible_pkg_mgr == 'pacman'"
+
+- name: Install build dependencies (apt)
+  apt:
+    name: "{{ item }}"
+  with_items:
+    - debianutils # Contains which
+    - git
+    - golang
+    - make
+    - zip
+  run_once: true
+  when: "hostvars['localhost']['ansible_pkg_mgr'] == 'apt'"
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Install build dependencies (pacman)
+  pacman:
+    name: "{{ item }}"
+  with_items:
+    - git
+    - go
+    - make
+    - which
+    - zip
+  run_once: true
+  when: "hostvars['localhost']['ansible_pkg_mgr'] == 'pacman'"
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Install build dependencies (yum)
+  yum:
+    name: "{{ item }}"
+  with_items:
+    - git
+    - golang
+    - make
+    - which
+    - zip
+  run_once: true
+  when: "hostvars['localhost']['ansible_pkg_mgr'] == 'yum'"
+  delegate_to: localhost
+  tags:
+    - local_deps
+
+- name: Install run dependencies (apt)
+  apt:
+    name: golang
+  when: ansible_pkg_mgr == "apt"
+
+- name: Install run dependencies (pacman)
+  pacman:
+    name: go
+  when: ansible_pkg_mgr == "pacman"
+
+- name: Fetch GOOS on controller
+  command: go env GOOS
+  register: controller_goos
+  changed_when: false
+  become: no
+  delegate_to: localhost
+
+- name: Fetch GOARCH on controller
+  command: go env GOARCH
+  register: controller_goarch
+  changed_when: false
+  become: no
+  delegate_to: localhost
+
+- name: Fetch GOOS on target
+  command: go env GOOS
+  changed_when: false
+  become: no
+  register: target_goos
+
+- name: Fetch GOARCH on target
+  command: go env GOARCH
+  changed_when: false
+  become: no
+  register: target_goarch
+
+- name: Create GOPATH
+  file:
+    path: "{{ gopath_consul }}"
+    state: directory
+    mode: 0770
+  become: no
+  run_once: true
+  delegate_to: localhost
+
+- name: Clone Consul
+  git:
+    repo: "https://github.com/hashicorp/consul"
+    dest: "{{ gopath_consul }}"
+    version: "v{{ consul_version }}"
+    force: true
+  register: git
+  become: no
+  run_once: true
+  delegate_to: localhost
+
+- name: Build Consul
+  command:
+    cmd: make
+    chdir: "{{ gopath_consul }}"
+  environment:
+    GOPATH: "{{ gopath }}"
+    PATH: "{{ gopath }}/bin:{{ ansible_env.PATH }}"
+    XC_OS: "{{ target_goos.stdout }} {{ controller_goos.stdout }}"
+    XC_ARCH: "{{ target_goarch.stdout }} {{ controller_goarch.stdout }}"
+  # Never changed because Makefile will always do something
+  changed_when: false
+  when: git.changed
+  become: no
+  run_once: true
+  delegate_to: localhost
+
+- name: Copy Consul binary
+  copy:
+    src: "{{ gopath_consul }}/pkg/{{ target_goos.stdout }}_{{ target_goarch.stdout }}/consul"
+    dest: /usr/bin/consul
+    mode: 0755
+    owner: root
+    group: root
+  register: consulbin
+
