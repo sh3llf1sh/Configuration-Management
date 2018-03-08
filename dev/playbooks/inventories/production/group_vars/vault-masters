@@ -1,0 +1,3 @@
+vault_consul: <redacted>
+vault_datacenter: dc1
+vault_iface: ens37
